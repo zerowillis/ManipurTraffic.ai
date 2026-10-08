@@ -14,12 +14,16 @@ class RiskRepository:
 
     def __init__(self, database_path: str | Path | None = None):
         configured_path = database_path or os.getenv("RISK_DATABASE_PATH")
-        self.database_path = Path(
-            configured_path
-            or Path(__file__).resolve().parents[1]
-            / "data"
-            / "risk_observations.sqlite3"
-        )
+        if configured_path:
+            self.database_path = Path(configured_path)
+        elif os.getenv("VERCEL") == "1":
+            self.database_path = Path("/tmp/manipurtraffic-risk-observations.sqlite3")
+        else:
+            self.database_path = (
+                Path(__file__).resolve().parents[1]
+                / "data"
+                / "risk_observations.sqlite3"
+            )
 
     def _connect(self) -> sqlite3.Connection:
         self.database_path.parent.mkdir(parents=True, exist_ok=True)

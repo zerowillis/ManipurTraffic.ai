@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, timezone
 
 from fastapi import FastAPI, HTTPException, Query, status
@@ -34,9 +35,20 @@ app = FastAPI(
     version="0.4.0",
 )
 
+configured_cors_origins = os.getenv("CORS_ORIGINS")
+cors_origins = (
+    [
+        origin.strip()
+        for origin in configured_cors_origins.split(",")
+        if origin.strip()
+    ]
+    if configured_cors_origins
+    else ["http://localhost:5173"]
+)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

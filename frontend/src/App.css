@@ -148,6 +148,7 @@
 
 .sidebar-heading {
   display: flex;
+  flex: 0 0 auto;
   min-height: 83px;
   align-items: center;
   justify-content: space-between;
@@ -188,6 +189,7 @@ p {
 
 .tool-tabs {
   display: grid;
+  flex: 0 0 auto;
   grid-template-columns: 1fr 1fr;
   padding: 0 14px;
   border-bottom: 1px solid #e8ece9;
@@ -240,6 +242,7 @@ p {
 .tool-panel {
   position: relative;
   z-index: 20;
+  flex: 0 0 auto;
   min-height: 160px;
   padding: 14px 14px 16px;
   border-bottom: 1px solid #e6ebe7;
@@ -1005,6 +1008,7 @@ p {
 }
 
 .sidebar-data {
+  flex: 0 0 auto;
   padding: 0 15px 14px;
 }
 

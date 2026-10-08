@@ -16,6 +16,11 @@ The interactive API reference is available at `/docs`. SQLite is created at
 `backend/data/risk_observations.sqlite3` on first use. Set
 `RISK_DATABASE_PATH` to use a different database file.
 
+On Vercel, SQLite uses `/tmp` so observation writes do not target the read-only
+deployment bundle. That storage is temporary and isolated to a function
+instance; observations and patterns are not durable across restarts or instances.
+Use a managed database before relying on stored observations in production.
+
 Install `requirements-dev.txt` to run the backend verification suite with
 `python -m pytest`.
 
