@@ -86,6 +86,70 @@ def test_map_starts_empty_and_provider_does_not_claim_live_access(client):
     assert traffic.json()["roads"] == []
 
 
+def test_synthetic_demo_api_serves_generated_data_separately_from_records(client):
+    model = client.get("/api/demo/model").json()
+    locations = client.get("/api/demo/locations").json()
+    risk_map = client.get("/api/demo/risk-map").json()
+    patterns = client.get("/api/demo/risk-patterns").json()
+    observations = client.get("/api/demo/observations").json()
+
+    assert model["available"] is True
+    assert model["data_source"] == "synthetic_demo"
+    assert model["is_real_world_model"] is False
+    assert model["dataset_rows"] == 2688
+    assert {
+        "historical_accidents_12mo",
+        "traffic_volume_vehicles_per_hour",
+        "road_width_m",
+        "hour_of_day",
+        "rainfall_mm",
+        "latitude",
+        "longitude",
+    }.issubset(model["features"])
+    assert locations["is_real_world_data"] is False
+    assert len(locations["locations"]) == 8
+    assert risk_map["is_real_world_prediction"] is False
+    assert len(risk_map["features"]) == 8
+    assert patterns["is_real_world_data"] is False
+    assert len(patterns["patterns"]) == 96
+    assert observations["is_real_world_data"] is False
+    assert observations["returned"] == 50
+    assert client.get("/api/risk/observations").json()["total_count"] == 0
+
+
+def test_synthetic_model_predicts_for_selected_demo_location_without_seeding_records(client):
+    location = client.get("/api/demo/locations").json()["locations"][0]
+    payload = {
+        **location["scenario_defaults"],
+        "latitude": location["latitude"],
+        "longitude": location["longitude"],
+        "poor_lighting": bool(location["scenario_defaults"]["poor_lighting"]),
+    }
+
+    response = client.post("/api/demo/risk-prediction", json=payload)
+    prediction = response.json()
+
+    assert response.status_code == 200
+    assert prediction["data_source"] == "synthetic_demo_model"
+    assert prediction["is_real_world_prediction"] is False
+    assert 0 <= prediction["synthetic_high_risk_probability"] <= 1
+    assert prediction["synthetic_high_risk_label"] in (0, 1)
+    assert "not a real-world" in prediction["warning"]
+    assert client.get("/api/risk/observations").json()["total_count"] == 0
+
+
+def test_synthetic_model_prediction_rejects_coordinates_outside_manipur(client):
+    location = client.get("/api/demo/locations").json()["locations"][0]
+    payload = {
+        **location["scenario_defaults"],
+        "latitude": 0,
+        "longitude": location["longitude"],
+        "poor_lighting": bool(location["scenario_defaults"]["poor_lighting"]),
+    }
+
+    assert client.post("/api/demo/risk-prediction", json=payload).status_code == 422
+
+
 def test_live_route_endpoint_returns_route_geometry_and_source(client, monkeypatch):
     monkeypatch.setattr(
         main.traffic_provider,

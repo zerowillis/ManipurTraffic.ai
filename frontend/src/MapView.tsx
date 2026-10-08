@@ -21,13 +21,16 @@ type RiskPoint = {
 
 type MapViewProps = {
   state: RemoteMapState
+  demoState: RemoteMapState
   selectedPlace: MapPlace | null
   routeStart: MapPlace | null
   routeEnd: MapPlace | null
   route: RoutePreview | null
   trafficSegment: [number, number][] | null
   showRisk: boolean
+  showDemoRisk: boolean
   onToggleRisk: () => void
+  onToggleDemoRisk: () => void
   onLocated: (place: MapPlace) => void
 }
 
@@ -161,13 +164,19 @@ function MapController({
 
 function MapControls({
   hasRisk,
+  hasDemoRisk,
   showRisk,
+  showDemoRisk,
   onToggleRisk,
+  onToggleDemoRisk,
   onLocated,
 }: {
   hasRisk: boolean
+  hasDemoRisk: boolean
   showRisk: boolean
+  showDemoRisk: boolean
   onToggleRisk: () => void
+  onToggleDemoRisk: () => void
   onLocated: (place: MapPlace) => void
 }) {
   const map = useMap()
@@ -211,6 +220,17 @@ function MapControls({
         <span className="layer-glyph" aria-hidden="true">▱</span>
         <span>Risk</span>
       </button>
+      <button
+        className={`map-control-button map-layer-button${showDemoRisk ? ' is-active' : ''}`}
+        type="button"
+        onClick={onToggleDemoRisk}
+        disabled={!hasDemoRisk}
+        aria-pressed={showDemoRisk}
+        title={hasDemoRisk ? 'Toggle synthetic AI demonstration locations' : 'No synthetic AI map locations are available'}
+      >
+        <span className="layer-glyph demo-layer-glyph" aria-hidden="true">◎</span>
+        <span>AI demo</span>
+      </button>
       {locationError ? (
         <p className="map-control-error" role="status">{locationError}</p>
       ) : null}
@@ -220,18 +240,25 @@ function MapControls({
 
 function MapView({
   state,
+  demoState,
   selectedPlace,
   routeStart,
   routeEnd,
   route,
   trafficSegment,
   showRisk,
+  showDemoRisk,
   onToggleRisk,
+  onToggleDemoRisk,
   onLocated,
 }: MapViewProps) {
   const points =
     state.status === 'available' || state.status === 'empty'
       ? extractRiskPoints(state.data)
+      : []
+  const demoPoints =
+    demoState.status === 'available' || demoState.status === 'empty'
+      ? extractRiskPoints(demoState.data)
       : []
   return (
     <div className="map-canvas">
@@ -250,8 +277,11 @@ function MapView({
         <MapController selectedPlace={selectedPlace} route={route} />
         <MapControls
           hasRisk={points.length > 0}
+          hasDemoRisk={demoPoints.length > 0}
           showRisk={showRisk}
+          showDemoRisk={showDemoRisk}
           onToggleRisk={onToggleRisk}
+          onToggleDemoRisk={onToggleDemoRisk}
           onLocated={onLocated}
         />
         {showRisk ? points.map((point, index) => {
@@ -269,6 +299,37 @@ function MapView({
                 <dl className="map-popup-details">
                   {score !== undefined ? (
                     <div><dt>Risk score</dt><dd>{printable(score)}</dd></div>
+                  ) : null}
+                  {Object.entries(point.properties)
+                    .filter(([key, value]) =>
+                      !['name', 'location', 'road_name', 'area', 'id', 'risk_score', 'score'].includes(key) &&
+                      value !== null &&
+                      typeof value !== 'object',
+                    )
+                    .map(([key, value]) => (
+                      <div key={key}><dt>{valueLabel(key)}</dt><dd>{printable(value)}</dd></div>
+                    ))}
+                </dl>
+              </Popup>
+            </CircleMarker>
+          )
+        }) : null}
+        {showDemoRisk ? demoPoints.map((point, index) => {
+          const color = markerColor(point.properties)
+          const score = propertyValue(point.properties, ['risk_score', 'score'])
+          return (
+            <CircleMarker
+              key={`demo-${point.latitude}-${point.longitude}-${index}`}
+              center={[point.latitude, point.longitude]}
+              radius={10}
+              pathOptions={{ color: '#fff', fillColor: color, fillOpacity: 0.9, weight: 3 }}
+            >
+              <Popup>
+                <strong>{point.label}</strong>
+                <div className="map-demo-popup-label">Synthetic model output · not measured risk</div>
+                <dl className="map-popup-details">
+                  {score !== undefined ? (
+                    <div><dt>Synthetic score / 100</dt><dd>{printable(score)}</dd></div>
                   ) : null}
                   {Object.entries(point.properties)
                     .filter(([key, value]) =>
@@ -335,19 +396,34 @@ function MapView({
           </CircleMarker>
         ) : null}
       </MapContainer>
-      {state.status === 'loading' ? (
+      {showRisk && state.status === 'loading' ? (
         <div className="map-overlay map-overlay-loading" role="status" aria-label="Loading risk map">
           <span className="loading-spinner" aria-hidden="true" />
         </div>
-      ) : state.status === 'unavailable' ? (
+      ) : showRisk && state.status === 'unavailable' ? (
         <div className="map-overlay" role="status">
           <strong>Backend risk layer unavailable</strong>
           <span>{state.message}</span>
         </div>
-      ) : state.status === 'error' ? (
+      ) : showRisk && state.status === 'error' ? (
         <div className="map-overlay map-overlay-error" role="alert">
           <strong>Backend risk layer could not be loaded</strong>
           <span>{state.message}</span>
+        </div>
+      ) : null}
+      {showDemoRisk && demoState.status === 'loading' ? (
+        <div className="map-overlay map-overlay-loading" role="status" aria-label="Loading synthetic AI risk map">
+          <span className="loading-spinner" aria-hidden="true" />
+        </div>
+      ) : showDemoRisk && demoState.status === 'unavailable' ? (
+        <div className="map-overlay" role="status">
+          <strong>Synthetic AI map unavailable</strong>
+          <span>{demoState.message}</span>
+        </div>
+      ) : showDemoRisk && demoState.status === 'error' ? (
+        <div className="map-overlay map-overlay-error" role="alert">
+          <strong>Synthetic AI map could not be loaded</strong>
+          <span>{demoState.message}</span>
         </div>
       ) : null}
       <a

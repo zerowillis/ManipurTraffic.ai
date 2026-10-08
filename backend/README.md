@@ -144,6 +144,41 @@ historical conditions cannot train a reliable model. The endpoint omits direct
 source links because the public FIR copies contain personal details; source URLs
 remain in the local historical CSV for maintainers.
 
+## Synthetic model demonstration
+
+The dashboard keeps its recorded risk observations and sourced public-report
+sample separate from a generated machine-learning demonstration. The
+reproducible dataset covers eight approximate Imphal place anchors and 2,688
+scenarios. Its features include generated historical-accident counts, traffic
+volume and speed, road type and surface, width, curve and lighting, local time,
+rainfall, visibility, and coordinates. Generated labels follow an illustrative
+hand-authored rule with a small amount of label noise; they are not measured
+crash outcomes.
+
+To regenerate the CSV and train the Random Forest model from the `backend`
+directory:
+
+```text
+python train_demo_model.py --generate-data
+```
+
+The generated CSV and model/map/pattern/observation artifacts are kept in the
+repository for reproducibility. The separate `/api/demo/*` endpoints serve
+these artifacts; `/api/demo/risk-prediction` accepts all model features and
+returns the model's synthetic high-risk probability. The existing dashboard
+automatically scores a selected map place against the nearest demo anchor, or
+an operator can choose one of the eight named anchors. Scenario conditions
+come from generated defaults, not live traffic or weather.
+
+`/api/demo/risk-map`, `/api/demo/risk-patterns`, and `/api/demo/observations`
+are explicitly synthetic layers. The map pins are approximate reference
+locations, not accident locations. Pattern rates and observations are generated
+labels/examples, not crash counts or real incident records. Model evaluation
+metrics measure agreement with generated labels only, not real-world
+prediction quality. The two public incident reports and the un-geocoded
+MoRTH annual/blackspot tables are not used for model training; their available
+data cannot support a location-and-conditions training set.
+
 ## Published Manipur accident history
 
 - `GET /api/accidents/history` returns two source-attributed MoRTH datasets:

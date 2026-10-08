@@ -3,7 +3,17 @@ from datetime import datetime, timezone
 
 from fastapi import FastAPI, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
 
+from demo_model import (
+    DEMO_CLASSIFICATION_THRESHOLD,
+    OBSERVATIONS_PATH,
+    PATTERNS_PATH,
+    RISK_MAP_PATH,
+    load_demo_model,
+    read_demo_artifact,
+    read_demo_metadata,
+)
 from models.accident_history import (
     HistoricalAccidentHistoryResponse,
     PublicAccidentDemoResponse,
@@ -62,6 +72,23 @@ traffic_risk_engine = TrafficRiskEngine()
 risk_analytics = RiskAnalytics(risk_engine)
 risk_repository = RiskRepository()
 historical_accident_provider = HistoricalAccidentProvider()
+
+
+class DemoRiskInput(BaseModel):
+    latitude: float = Field(ge=24.5, le=25.2, allow_inf_nan=False)
+    longitude: float = Field(ge=93.5, le=94.4, allow_inf_nan=False)
+    traffic_volume_vehicles_per_hour: int = Field(ge=0, le=2000)
+    average_speed_kmh: float = Field(ge=0, le=120, allow_inf_nan=False)
+    historical_accidents_12mo: int = Field(ge=0, le=100)
+    hour_of_day: int = Field(ge=0, le=23)
+    day_of_week: int = Field(ge=0, le=6)
+    rainfall_mm: float = Field(ge=0, le=100, allow_inf_nan=False)
+    visibility_m: int = Field(ge=0, le=10000)
+    road_width_m: float = Field(ge=1, le=30, allow_inf_nan=False)
+    curve_severity: int = Field(ge=0, le=3)
+    poor_lighting: bool
+    road_surface_code: int = Field(ge=0, le=2)
+    road_type_code: int = Field(ge=0, le=2)
 
 
 def _now_utc() -> datetime:
@@ -142,6 +169,134 @@ def get_public_demo_accidents():
             status_code=503,
             detail="Public demo incident records are unavailable.",
         ) from error
+
+
+@app.get("/api/demo/model")
+def get_demo_model_status():
+    metadata = read_demo_metadata()
+    if metadata is None:
+        return {
+            "available": False,
+            "data_source": "synthetic_demo",
+            "message": "Train the synthetic demo model before requesting demo predictions.",
+        }
+    return {
+        "available": True,
+        "data_source": metadata["data_source"],
+        "is_real_world_model": metadata["is_real_world_model"],
+        "dataset_rows": metadata["dataset_rows"],
+        "test_rows": metadata["test_rows"],
+        "features": metadata["features"],
+        "target": metadata["target"],
+        "synthetic_outcome_threshold": metadata["synthetic_outcome_threshold"],
+        "synthetic_label_noise": metadata["synthetic_label_noise"],
+        "metrics": metadata["metrics"],
+        "classification_threshold": metadata["classification_threshold"],
+        "train_period_end": metadata["train_period_end"],
+        "test_period_start": metadata["test_period_start"],
+        "trained_at": metadata["trained_at"],
+        "warning": metadata["warning"],
+        "risk_map_locations": metadata["risk_map_locations"],
+        "pattern_groups": metadata["pattern_groups"],
+        "total_synthetic_incident_examples": metadata[
+            "total_synthetic_incident_examples"
+        ],
+        "returned_observations": metadata["returned_observations"],
+    }
+
+
+def _trained_demo_artifact(path):
+    try:
+        return read_demo_artifact(path)
+    except FileNotFoundError as error:
+        raise HTTPException(
+            status_code=503,
+            detail="Synthetic demo outputs are not trained. Run `python train_demo_model.py --generate-data` from the backend directory.",
+        ) from error
+
+
+@app.get("/api/demo/risk-map")
+def get_demo_risk_map():
+    return _trained_demo_artifact(RISK_MAP_PATH)
+
+
+@app.get("/api/demo/locations")
+def get_demo_locations():
+    risk_map = _trained_demo_artifact(RISK_MAP_PATH)
+    locations = [
+        {
+            "place_name": feature["properties"]["place_name"],
+            "location_name": feature["properties"]["location_name"],
+            "latitude": feature["geometry"]["coordinates"][1],
+            "longitude": feature["geometry"]["coordinates"][0],
+            "scenario_defaults": {
+                key: value
+                for key, value in feature["properties"]["scenario_defaults"].items()
+                if key not in {"latitude", "longitude"}
+            },
+        }
+        for feature in risk_map["features"]
+    ]
+    return {
+        "data_source": "synthetic_demo_model",
+        "is_real_world_data": False,
+        "warning": (
+            "These are approximate real-place anchors for synthetic scenarios, "
+            "not verified accident locations."
+        ),
+        "locations": locations,
+    }
+
+
+@app.get("/api/demo/risk-patterns")
+def get_demo_risk_patterns():
+    return _trained_demo_artifact(PATTERNS_PATH)
+
+
+@app.get("/api/demo/observations")
+def get_demo_observations():
+    return _trained_demo_artifact(OBSERVATIONS_PATH)
+
+
+@app.post("/api/demo/risk-prediction")
+def predict_demo_risk(features: DemoRiskInput):
+    try:
+        model = load_demo_model()
+    except FileNotFoundError as error:
+        raise HTTPException(
+            status_code=503,
+            detail="Synthetic demo model is not trained. Run `python train_demo_model.py --generate-data` from the backend directory.",
+        ) from error
+
+    feature_values = [[
+        features.latitude,
+        features.longitude,
+        features.traffic_volume_vehicles_per_hour,
+        features.average_speed_kmh,
+        features.historical_accidents_12mo,
+        features.hour_of_day,
+        features.day_of_week,
+        features.rainfall_mm,
+        features.visibility_m,
+        features.road_width_m,
+        features.curve_severity,
+        int(features.poor_lighting),
+        features.road_surface_code,
+        features.road_type_code,
+    ]]
+    probability = float(model.predict_proba(feature_values)[0][1])
+    return {
+        "data_source": "synthetic_demo_model",
+        "is_real_world_prediction": False,
+        "synthetic_high_risk_probability": round(probability, 4),
+        "synthetic_high_risk_label": int(
+            probability >= DEMO_CLASSIFICATION_THRESHOLD
+        ),
+        "warning": (
+            "Demonstration output only. This probability is not a real-world "
+            "crash-risk prediction."
+        ),
+    }
 
 
 @app.get("/api/weather/current", response_model=WeatherCurrent)

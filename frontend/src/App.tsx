@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import './App.css'
 import MapView from './MapView'
-import { apiGet, ApiError } from './api'
+import { apiGet, apiPost, ApiError } from './api'
 import {
   ensureDeviceLocationPermission,
   getCurrentDeviceLocation,
@@ -91,6 +91,78 @@ type PublicDemoResponse = {
   note: string
 }
 
+type DemoModelStatus = {
+  available: boolean
+  data_source?: string
+  is_real_world_model?: boolean
+  dataset_rows?: number
+  test_rows?: number
+  features?: string[]
+  metrics?: {
+    accuracy: number
+    precision: number
+    recall: number
+    f1: number
+  }
+  classification_threshold?: number
+  train_period_end?: string
+  test_period_start?: string
+  trained_at?: string
+  warning?: string
+  risk_map_locations?: number
+  pattern_groups?: number
+  total_synthetic_incident_examples?: number
+  returned_observations?: number
+  message?: string
+}
+
+type DemoLocation = {
+  place_name: string
+  location_name: string
+  latitude: number
+  longitude: number
+  scenario_defaults: Omit<DemoRiskPredictionInput, 'latitude' | 'longitude'>
+}
+
+type DemoLocationsResponse = {
+  data_source: string
+  is_real_world_data: false
+  warning: string
+  locations: DemoLocation[]
+}
+
+type DemoRiskPredictionInput = {
+  latitude: number
+  longitude: number
+  traffic_volume_vehicles_per_hour: number
+  average_speed_kmh: number
+  historical_accidents_12mo: number
+  hour_of_day: number
+  day_of_week: number
+  rainfall_mm: number
+  visibility_m: number
+  road_width_m: number
+  curve_severity: number
+  poor_lighting: boolean | number
+  road_surface_code: number
+  road_type_code: number
+}
+
+type DemoPrediction = {
+  data_source: string
+  is_real_world_prediction: false
+  synthetic_high_risk_probability: number
+  synthetic_high_risk_label: number
+  warning: string
+}
+
+type DemoSelection = {
+  location: DemoLocation
+  latitude: number
+  longitude: number
+  label: string
+}
+
 type DashboardData = {
   health: RemoteData<unknown>
   provider: RemoteData<TrafficProvider>
@@ -100,6 +172,11 @@ type DashboardData = {
   observations: RemoteData<unknown>
   patterns: RemoteData<unknown>
   demo: RemoteData<PublicDemoResponse>
+  demoModel: RemoteData<DemoModelStatus>
+  demoLocations: RemoteData<DemoLocationsResponse>
+  demoRiskMap: RemoteData<unknown>
+  demoPatterns: RemoteData<unknown>
+  demoObservations: RemoteData<unknown>
 }
 
 type ToolMode = 'search' | 'directions'
@@ -171,6 +248,11 @@ const emptyDashboard: DashboardData = {
   observations: { status: 'loading' },
   patterns: { status: 'loading' },
   demo: { status: 'loading' },
+  demoModel: { status: 'loading' },
+  demoLocations: { status: 'loading' },
+  demoRiskMap: { status: 'loading' },
+  demoPatterns: { status: 'loading' },
+  demoObservations: { status: 'loading' },
 }
 
 async function readEndpoint<T>(path: string): Promise<RemoteData<T>> {
@@ -234,6 +316,21 @@ function displayValue(value: unknown): string {
 
 function humanize(key: string): string {
   return key.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
+}
+
+function distanceInKilometres(
+  first: Pick<MapPlace, 'latitude' | 'longitude'>,
+  second: Pick<DemoLocation, 'latitude' | 'longitude'>,
+): number {
+  const radians = Math.PI / 180
+  const latitudeDifference = (second.latitude - first.latitude) * radians
+  const longitudeDifference = (second.longitude - first.longitude) * radians
+  const haversine =
+    Math.sin(latitudeDifference / 2) ** 2 +
+    Math.cos(first.latitude * radians) *
+      Math.cos(second.latitude * radians) *
+      Math.sin(longitudeDifference / 2) ** 2
+  return 6371 * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine))
 }
 
 function formatWeatherTime(value: string | null | undefined): string | null {
@@ -300,54 +397,6 @@ function getRecords(value: unknown, keys: string[]): Record<string, unknown>[] |
     return getRecords(nested, keys)
   }
   return [record]
-}
-
-function RecordTable({
-  state,
-  keys,
-  emptyMessage,
-}: {
-  state: RemoteData<unknown>
-  keys: string[]
-  emptyMessage: string
-}) {
-  if (state.status !== 'available') {
-    if (state.status === 'empty') return <p className="state-message">{emptyMessage}</p>
-    return <DataState state={state} />
-  }
-
-  const records = getRecords(state.data, keys)
-  if (!records || records.length === 0) {
-    return <p className="state-message">{emptyMessage}</p>
-  }
-
-  const columns = [...new Set(records.flatMap((record) => Object.keys(record)))]
-  if (columns.length === 0) {
-    return <p className="state-message">{emptyMessage}</p>
-  }
-
-  return (
-    <div className="table-scroll">
-      <table>
-        <thead>
-          <tr>
-            {columns.map((column) => (
-              <th key={column} scope="col">{humanize(column)}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {records.map((record, index) => (
-            <tr key={String(record.id ?? record.observed_at ?? index)}>
-              {columns.map((column) => (
-                <td key={column}>{displayValue(record[column])}</td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
 }
 
 function DemoIncidentAnalysis({
@@ -418,6 +467,224 @@ function DemoIncidentAnalysis({
   )
 }
 
+function SyntheticAIAnalysis({
+  model,
+  locations,
+  riskMap,
+  patterns,
+  observations,
+  selection,
+  prediction,
+  onSelectLocation,
+}: {
+  model: RemoteData<DemoModelStatus>
+  locations: RemoteData<DemoLocationsResponse>
+  riskMap: RemoteData<unknown>
+  patterns: RemoteData<unknown>
+  observations: RemoteData<unknown>
+  selection: DemoSelection | null
+  prediction: RemoteData<DemoPrediction>
+  onSelectLocation: (location: DemoLocation) => void
+}) {
+  const availableLocations = locations.data?.locations ?? []
+  const modelStatus = model.data
+  const classificationThreshold = modelStatus?.classification_threshold
+  const patternRows = patterns.status === 'available'
+    ? (getRecords(patterns.data, ['patterns']) ?? []).slice(0, 6)
+    : []
+  const observationRows = observations.status === 'available'
+    ? (getRecords(observations.data, ['observations']) ?? []).slice(0, 6)
+    : []
+
+  return (
+    <div className="synthetic-ai-analysis">
+      <div className="synthetic-ai-summary">
+        <div className="synthetic-ai-copy">
+          <span className="demo-status">SYNTHETIC · RANDOM FOREST</span>
+          <p>
+            Select an Imphal reference location or search for a nearby place.
+            The model scores generated traffic, road, time, weather, and
+            accident-history inputs for that location.
+          </p>
+          <label className="demo-location-select" htmlFor="demo-ai-location">
+            <span>Run the model for a demo location</span>
+            <select
+              id="demo-ai-location"
+              value={selection?.location.place_name ?? ''}
+              disabled={locations.status !== 'available'}
+              onChange={(event) => {
+                const location = availableLocations.find(
+                  (candidate) => candidate.place_name === event.target.value,
+                )
+                if (location) onSelectLocation(location)
+              }}
+            >
+              <option value="">Choose an Imphal reference location</option>
+              {availableLocations.map((location) => (
+                <option key={location.place_name} value={location.place_name}>
+                  {location.place_name}
+                </option>
+              ))}
+            </select>
+          </label>
+          {locations.status !== 'available' ? <DataState state={locations} /> : null}
+          {selection ? (
+            <p className="demo-selection-note">
+              Selected: <strong>{selection.label}</strong> · synthetic reference:
+              {' '}{selection.location.place_name}
+            </p>
+          ) : null}
+        </div>
+
+        <div className="synthetic-ai-result" aria-live="polite">
+          {model.status !== 'available' ? <DataState state={model} /> : null}
+          {model.status === 'available' && !modelStatus?.available ? (
+            <p className="state-message">
+              {modelStatus?.message ?? 'Synthetic model artifacts are unavailable.'}
+            </p>
+          ) : null}
+          {model.status === 'available' && modelStatus?.available ? (
+            <>
+              <span className="synthetic-result-label">Selected scenario output</span>
+              {prediction.status === 'loading' ? (
+                <p className="state-message state-loading">
+                  <LoadingIndicator label="Scoring synthetic scenario" />
+                </p>
+              ) : prediction.status === 'available' && prediction.data ? (
+                <>
+                  <div className="synthetic-result-score">
+                    <strong>
+                      {(prediction.data.synthetic_high_risk_probability * 100).toFixed(1)}%
+                    </strong>
+                    <span>synthetic model output</span>
+                  </div>
+                  <p className="synthetic-result-class">
+                    {prediction.data.synthetic_high_risk_label === 1
+                      ? 'Above'
+                      : 'Below'}{' '}
+                    {classificationThreshold == null
+                      ? 'the demo classification cutoff, which was not returned'
+                      : `the ${(classificationThreshold * 100).toFixed(0)}% demo cutoff`}
+                  </p>
+                  <p className="synthetic-result-warning">{prediction.data.warning}</p>
+                </>
+              ) : prediction.status === 'empty' ? (
+                <p className="state-message">Select a supported location to run the model.</p>
+              ) : (
+                <DataState state={prediction} />
+              )}
+            </>
+          ) : null}
+        </div>
+      </div>
+
+      {model.status === 'available' && modelStatus?.available ? (
+        <div className="synthetic-ai-metrics" aria-label="Synthetic model metadata">
+          <span><strong>{displayValue(modelStatus.dataset_rows)}</strong><small>generated scenarios</small></span>
+          <span><strong>{displayValue(modelStatus.total_synthetic_incident_examples)}</strong><small>synthetic positive labels</small></span>
+          <span><strong>{displayValue(modelStatus.risk_map_locations)}</strong><small>approximate map anchors</small></span>
+          <span><strong>{displayValue(modelStatus.pattern_groups)}</strong><small>generated pattern groups</small></span>
+        </div>
+      ) : null}
+
+      {model.status === 'available' && modelStatus?.available && modelStatus.metrics ? (
+        <div className="synthetic-model-metrics">
+          <strong>Chronological holdout against synthetic labels</strong>
+          <div>
+            {Object.entries(modelStatus.metrics).map(([name, value]) => (
+              <span key={name}><small>{humanize(name)}</small><b>{(value * 100).toFixed(1)}%</b></span>
+            ))}
+          </div>
+          <p>
+            Test period {modelStatus.test_period_start ?? 'not returned'} onward.
+            These metrics measure fit to the generated rule, not real crash prediction.
+          </p>
+        </div>
+      ) : null}
+
+      <div className="synthetic-ai-data-grid">
+        <section className="synthetic-data-section" aria-labelledby="synthetic-patterns-title">
+          <div className="synthetic-section-heading">
+            <h4 id="synthetic-patterns-title">Generated recurring patterns</h4>
+            <span>Top returned label rates</span>
+          </div>
+          {patterns.status !== 'available' ? <DataState state={patterns} /> : patternRows.length === 0 ? (
+            <p className="state-message">No generated pattern groups were returned.</p>
+          ) : (
+            <div className="table-scroll">
+              <table>
+                <thead><tr>
+                  <th>Reference area</th><th>Period</th><th>Conditions</th>
+                  <th>Scenarios</th><th>Positive labels</th><th>Label rate</th>
+                </tr></thead>
+                <tbody>
+                  {patternRows.map((pattern, index) => (
+                    <tr key={`${displayValue(pattern.location_name)}-${index}`}>
+                      <td>{displayValue(pattern.location_name)}</td>
+                      <td>{displayValue(pattern.day_period)}</td>
+                      <td>{displayValue(pattern.weather_condition)} · {displayValue(pattern.road_surface)}</td>
+                      <td>{displayValue(pattern.scenario_count)}</td>
+                      <td>{displayValue(pattern.synthetic_accident_observations)}</td>
+                      <td>
+                        {pattern.synthetic_incident_rate_percent == null
+                          ? '—'
+                          : `${displayValue(pattern.synthetic_incident_rate_percent)}%`}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
+        <section className="synthetic-data-section" aria-labelledby="synthetic-observations-title">
+          <div className="synthetic-section-heading">
+            <h4 id="synthetic-observations-title">Generated positive examples</h4>
+            <span>Not recorded accidents</span>
+          </div>
+          {observations.status !== 'available' ? <DataState state={observations} /> : observationRows.length === 0 ? (
+            <p className="state-message">No generated examples were returned.</p>
+          ) : (
+            <div className="table-scroll">
+              <table>
+                <thead><tr>
+                  <th>Generated time</th><th>Reference area</th><th>Period</th>
+                  <th>Weather</th><th>Road</th><th>Traffic / hour</th>
+                  <th>Generated history</th>
+                </tr></thead>
+                <tbody>
+                  {observationRows.map((observation, index) => (
+                    <tr key={`${displayValue(observation.observation_id)}-${index}`}>
+                      <td>{formatWeatherTime(String(observation.observed_at ?? '')) ?? '—'}</td>
+                      <td>{displayValue(observation.location_name)}</td>
+                      <td>{displayValue(observation.day_period)}</td>
+                      <td>{displayValue(observation.weather_condition)}</td>
+                      <td>{displayValue(observation.road_surface)}</td>
+                      <td>{displayValue(observation.traffic_volume_vehicles_per_hour)}</td>
+                      <td>{displayValue(observation.historical_accidents_12mo)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      </div>
+
+      <p className="synthetic-ai-caveat">
+        {modelStatus?.warning ?? 'Synthetic output only; not calibrated against verified crash records.'}
+        {' '}{locations.data?.warning ?? ''}
+        {' '}Generated traffic, road, weather, and historical values are not live or verified.
+        Turn on the separate AI demo map layer to see the returned approximate reference points.
+        {riskMap.status === 'error' || riskMap.status === 'unavailable'
+          ? ` Demo map layer: ${riskMap.message ?? riskMap.status}.`
+          : ''}
+      </p>
+    </div>
+  )
+}
+
 function App() {
   const [dashboard, setDashboard] = useState<DashboardData>(emptyDashboard)
   const [refreshing, setRefreshing] = useState(false)
@@ -435,6 +702,11 @@ function App() {
   const [searchLocationLoading, setSearchLocationLoading] = useState(false)
   const [directionsLocationLoading, setDirectionsLocationLoading] = useState(false)
   const [selectedPlace, setSelectedPlace] = useState<MapPlace | null>(null)
+  const [manualDemoSelection, setManualDemoSelection] = useState<DemoSelection | null>(null)
+  const [demoPrediction, setDemoPrediction] = useState<{
+    key: string
+    state: RemoteData<DemoPrediction>
+  } | null>(null)
   const [routeStart, setRouteStart] = useState<MapPlace | null>(null)
   const [routeEnd, setRouteEnd] = useState<MapPlace | null>(null)
   const [startQuery, setStartQuery] = useState('')
@@ -451,29 +723,108 @@ function App() {
   const [routeError, setRouteError] = useState('')
   const [routeLoading, setRouteLoading] = useState(false)
   const [showRisk, setShowRisk] = useState(false)
+  const [showDemoRisk, setShowDemoRisk] = useState(false)
+
+  const nearestDemoMatch = useMemo(() => {
+    if (
+      !selectedPlace ||
+      dashboard.demoLocations.status !== 'available' ||
+      !dashboard.demoLocations.data
+    ) return null
+
+    return dashboard.demoLocations.data.locations.reduce<{
+      location: DemoLocation | null
+      distance: number
+    }>((closest, location) => {
+      const distance = distanceInKilometres(selectedPlace, location)
+      return distance < closest.distance ? { location, distance } : closest
+    }, { location: null, distance: Number.POSITIVE_INFINITY })
+  }, [dashboard.demoLocations, selectedPlace])
+
+  const demoSelection = useMemo(
+    () => manualDemoSelection ?? (
+      selectedPlace &&
+      nearestDemoMatch?.location &&
+      nearestDemoMatch.distance <= 5
+        ? {
+          location: nearestDemoMatch.location,
+          latitude: selectedPlace.latitude,
+          longitude: selectedPlace.longitude,
+          label: selectedPlace.name,
+        }
+        : null
+    ),
+    [manualDemoSelection, nearestDemoMatch, selectedPlace],
+  )
+  const demoPredictionKey = demoSelection
+    ? `${demoSelection.location.place_name}:${demoSelection.latitude}:${demoSelection.longitude}`
+    : null
+  const demoPredictionState = demoSelection && demoPredictionKey
+    ? demoPrediction?.key === demoPredictionKey
+      ? demoPrediction.state
+      : { status: 'loading' as const }
+    : selectedPlace && dashboard.demoLocations.status === 'available'
+      ? {
+        status: 'unavailable' as const,
+        message: nearestDemoMatch?.location
+          ? 'No synthetic reference location is within 5 km. Choose one of the named Imphal demo locations below.'
+          : 'No synthetic reference location is available for this place.',
+      }
+      : selectedPlace && dashboard.demoLocations.status !== 'loading'
+        ? {
+          status: dashboard.demoLocations.status === 'unavailable' ? 'unavailable' as const : 'error' as const,
+          message: dashboard.demoLocations.message ?? 'Synthetic demo locations could not be loaded.',
+        }
+        : dashboard.demoLocations.status === 'loading'
+          ? { status: 'loading' as const }
+          : { status: 'empty' as const }
 
   const fetchDashboard = useCallback(async (): Promise<DashboardData> => {
-    const [health, provider, weather, riskMap, observations, patterns, demo] =
-      await Promise.all([
-        readEndpoint<unknown>('/api/health'),
-        readEndpoint<TrafficProvider>('/api/traffic/provider'),
-        readEndpoint<CurrentWeather>('/api/weather/current?latitude=24.817&longitude=93.9368'),
-        readEndpoint<unknown>('/api/risk/map'),
-        readEndpoint<unknown>('/api/risk/observations'),
-        readEndpoint<unknown>('/api/risk/patterns'),
-        readEndpoint<PublicDemoResponse>('/api/accidents/demo'),
-      ])
-
-    // Live TomTom traffic is requested only after the browser grants location access.
-    return {
+    const [
       health,
       provider,
-      roads: { status: 'empty' },
+      roads,
       weather,
       riskMap,
       observations,
       patterns,
       demo,
+      demoModel,
+      demoLocations,
+      demoRiskMap,
+      demoPatterns,
+      demoObservations,
+    ] = await Promise.all([
+      readEndpoint<unknown>('/api/health'),
+      readEndpoint<TrafficProvider>('/api/traffic/provider'),
+      readEndpoint<TrafficRoads>('/api/traffic/roads'),
+      readEndpoint<CurrentWeather>('/api/weather/current?latitude=24.817&longitude=93.9368'),
+      readEndpoint<unknown>('/api/risk/map'),
+      readEndpoint<unknown>('/api/risk/observations'),
+      readEndpoint<unknown>('/api/risk/patterns'),
+      readEndpoint<PublicDemoResponse>('/api/accidents/demo'),
+      readEndpoint<DemoModelStatus>('/api/demo/model'),
+      readEndpoint<DemoLocationsResponse>('/api/demo/locations'),
+      readEndpoint<unknown>('/api/demo/risk-map'),
+      readEndpoint<unknown>('/api/demo/risk-patterns'),
+      readEndpoint<unknown>('/api/demo/observations'),
+    ])
+
+    // Live TomTom traffic is requested only after the browser grants location access.
+    return {
+      health,
+      provider,
+      roads,
+      weather,
+      riskMap,
+      observations,
+      patterns,
+      demo,
+      demoModel,
+      demoLocations,
+      demoRiskMap,
+      demoPatterns,
+      demoObservations,
     }
   }, [])
 
@@ -499,6 +850,39 @@ function App() {
       cancelled = true
     }
   }, [fetchDashboard])
+
+  useEffect(() => {
+    if (!demoSelection) return
+    let cancelled = false
+    const key = `${demoSelection.location.place_name}:${demoSelection.latitude}:${demoSelection.longitude}`
+    const features: DemoRiskPredictionInput = {
+      ...demoSelection.location.scenario_defaults,
+      latitude: demoSelection.latitude,
+      longitude: demoSelection.longitude,
+      poor_lighting: Boolean(demoSelection.location.scenario_defaults.poor_lighting),
+    }
+
+    void apiPost<DemoPrediction>('/api/demo/risk-prediction', features)
+      .then((data) => {
+        if (!cancelled) {
+          setDemoPrediction({ key, state: { status: 'available', data } })
+        }
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return
+        setDemoPrediction({
+          key,
+          state: {
+            status: error instanceof ApiError && error.status === 404 ? 'unavailable' : 'error',
+            message: error instanceof Error ? error.message : 'Synthetic demo prediction failed.',
+          },
+        })
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [demoSelection])
 
   useEffect(() => {
     const query = searchQuery.trim()
@@ -575,12 +959,14 @@ function App() {
     setSearchFocused(false)
     setSearchSuggestions([])
     setSearchSuggestionState('idle')
+    setManualDemoSelection(null)
     setSelectedPlace(place)
     setSearchQuery(place.name)
     setSearchResults([])
     setSearchState('idle')
     setLocationTraffic({ status: 'loading' })
     setRoutePreview(null)
+    setShowDemoRisk(true)
     try {
       const traffic = await getLiveTrafficAtLocation(place)
       setLocationTraffic({ status: 'available', data: traffic })
@@ -596,12 +982,14 @@ function App() {
     setSearchLocationLoading(true)
     setSearchState('idle')
     setSearchResults([])
+    setManualDemoSelection(null)
     setSelectedPlace(null)
     setRoutePreview(null)
     setLocationTraffic({ status: 'loading' })
     try {
       const place = await getCurrentDeviceLocation()
       setSelectedPlace(place)
+      setShowDemoRisk(true)
       setSearchQuery(place.name)
       setRoutePreview(null)
       try {
@@ -698,7 +1086,9 @@ function App() {
     setRouteError('')
     try {
       const place = await getCurrentDeviceLocation()
+      setManualDemoSelection(null)
       setSelectedPlace(place)
+      setShowDemoRisk(true)
       setRouteFieldValue('start', place)
       setToolMode('directions')
     } catch (error) {
@@ -709,10 +1099,34 @@ function App() {
   }
 
   const handleLocated = (place: MapPlace) => {
+    setManualDemoSelection(null)
     setSelectedPlace(place)
+    setShowDemoRisk(true)
     setLocationTraffic({ status: 'empty' })
     setRouteFieldValue('start', place)
     setToolMode('directions')
+  }
+
+  const selectDemoLocation = (location: DemoLocation) => {
+    const place: MapPlace = {
+      name: location.place_name,
+      displayName: `${location.place_name}, Imphal, Manipur`,
+      latitude: location.latitude,
+      longitude: location.longitude,
+    }
+    setSelectedPlace(place)
+    setSearchQuery(place.name)
+    setSearchResults([])
+    setSearchState('idle')
+    setLocationTraffic({ status: 'empty' })
+    setRoutePreview(null)
+    setManualDemoSelection({
+      location,
+      latitude: location.latitude,
+      longitude: location.longitude,
+      label: location.place_name,
+    })
+    setShowDemoRisk(true)
   }
 
   const trafficSegment = locationTraffic.data?.geometry?.coordinates
@@ -1243,6 +1657,37 @@ function App() {
                   {locationTraffic.message}
                 </p>
               ) : null}
+              <div className="traffic-roads-status" aria-live="polite">
+                {dashboard.roads.status === 'loading' ? (
+                  <p className="source-explanation">
+                    <LoadingIndicator label="Loading traffic road status" />
+                    <span>Checking provider road data…</span>
+                  </p>
+                ) : dashboard.roads.status === 'available' ? (
+                  dashboard.roads.data?.roads?.length ? (
+                    <ul>
+                      {dashboard.roads.data.roads.map((road, index) => (
+                        <li key={`${road.name ?? 'road'}-${index}`}>
+                          <span>{road.name ?? 'Road segment'}</span>
+                          <strong>
+                            {road.average_speed_kmh == null
+                              ? road.status ?? 'Status unavailable'
+                              : `${road.average_speed_kmh.toFixed(0)} km/h`}
+                          </strong>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="source-explanation">The provider returned no road snapshots.</p>
+                  )
+                ) : dashboard.roads.status === 'error' || dashboard.roads.status === 'unavailable' ? (
+                  <p className="source-explanation source-error">
+                    {dashboard.roads.data?.message ?? dashboard.roads.message ?? 'Traffic road data is unavailable.'}
+                  </p>
+                ) : (
+                  <p className="source-explanation">No traffic road data returned.</p>
+                )}
+              </div>
               <div className="weather-sidecard">
                 <div className="weather-side-heading">
                   <span className="weather-symbol" aria-hidden="true">◌</span>
@@ -1297,52 +1742,55 @@ function App() {
                 </small>
               </span>
               <span className="map-layer-note">
-                {showRisk ? 'Recorded risk layer' : 'OpenStreetMap'}
+                {showDemoRisk && showRisk
+                  ? 'Recorded + synthetic layers'
+                  : showDemoRisk
+                    ? 'Synthetic AI demo layer'
+                    : showRisk
+                      ? 'Recorded risk layer'
+                      : 'OpenStreetMap'}
               </span>
             </div>
             <MapView
               state={dashboard.riskMap}
+              demoState={dashboard.demoRiskMap}
               selectedPlace={selectedPlace}
               routeStart={routeStart}
               routeEnd={routeEnd}
               route={routePreview}
               trafficSegment={trafficSegment}
               showRisk={showRisk}
+              showDemoRisk={showDemoRisk}
               onToggleRisk={() => setShowRisk((visible) => !visible)}
+              onToggleDemoRisk={() => setShowDemoRisk((visible) => !visible)}
               onLocated={handleLocated}
             />
           </section>
         </section>
 
-        <section className="records-section" aria-label="Road risk records">
+        <section className="records-section" aria-label="Risk analysis demonstrations">
           <div className="records-heading">
             <div>
-              <span className="eyebrow">DATA</span>
-              <h2>Recorded road risk</h2>
+              <span className="eyebrow">ANALYSIS</span>
+              <h2>Risk analysis demonstrations</h2>
             </div>
-            <p>The live traffic index uses current provider data; it is not an accident probability. The report-based analysis below remains a separate demo.</p>
+            <p>The synthetic model and source-report examples below are separate demonstrations; neither changes live traffic or baseline risk scores.</p>
           </div>
           <div className="records-grid">
-            <section className="record-panel" aria-labelledby="observations-title">
+            <section className="record-panel synthetic-ai-panel" aria-labelledby="synthetic-ai-title">
               <div className="record-title">
-                <h3 id="observations-title">Observations</h3>
-                <span>Backend records</span>
+                <h3 id="synthetic-ai-title">Synthetic AI demonstration</h3>
+                <span>Generated dataset · not live</span>
               </div>
-              <RecordTable
-                state={dashboard.observations}
-                keys={['observations', 'items', 'data']}
-                emptyMessage="No risk observations have been recorded."
-              />
-            </section>
-            <section className="record-panel" aria-labelledby="patterns-title">
-              <div className="record-title">
-                <h3 id="patterns-title">Recurring patterns</h3>
-                <span>Backend analysis</span>
-              </div>
-              <RecordTable
-                state={dashboard.patterns}
-                keys={['patterns', 'items', 'data']}
-                emptyMessage="No recurring risk patterns have been returned."
+              <SyntheticAIAnalysis
+                model={dashboard.demoModel}
+                locations={dashboard.demoLocations}
+                riskMap={dashboard.demoRiskMap}
+                patterns={dashboard.demoPatterns}
+                observations={dashboard.demoObservations}
+                selection={demoSelection}
+                prediction={demoPredictionState}
+                onSelectLocation={selectDemoLocation}
               />
             </section>
             <section className="record-panel demo-panel" aria-labelledby="demo-title">

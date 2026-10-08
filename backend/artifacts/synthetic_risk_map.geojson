@@ -1,0 +1,320 @@
+{
+  "type": "FeatureCollection",
+  "data_source": "synthetic_demo_model",
+  "is_real_world_prediction": false,
+  "warning": "Illustrative synthetic sectors and model output; not actual crash records or real-world risk predictions.",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          93.9368,
+          24.807
+        ]
+      },
+      "properties": {
+        "name": "Kangla Fort area (synthetic demo)",
+        "place_name": "Kangla Fort",
+        "location_name": "Kangla Fort area (synthetic demo)",
+        "severity": "moderate",
+        "risk_score": 19,
+        "synthetic_high_risk_probability": 0.1894,
+        "historical_accidents_12mo": 11,
+        "scenario_count": 336,
+        "road_type": "arterial",
+        "road_surface": "paved",
+        "scenario_defaults": {
+          "latitude": 24.807,
+          "longitude": 93.9368,
+          "traffic_volume_vehicles_per_hour": 680.0,
+          "average_speed_kmh": 39.1,
+          "historical_accidents_12mo": 11.0,
+          "hour_of_day": 12.0,
+          "day_of_week": 0.0,
+          "rainfall_mm": 0.5,
+          "visibility_m": 6948.0,
+          "road_width_m": 8.0,
+          "curve_severity": 1.0,
+          "poor_lighting": 0.0,
+          "road_surface_code": 0.0,
+          "road_type_code": 0.0
+        },
+        "data_source": "synthetic_demo_model"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          93.939,
+          24.811
+        ]
+      },
+      "properties": {
+        "name": "Ima Keithel area (synthetic demo)",
+        "place_name": "Ima Keithel",
+        "location_name": "Ima Keithel area (synthetic demo)",
+        "severity": "high",
+        "risk_score": 38,
+        "synthetic_high_risk_probability": 0.3817,
+        "historical_accidents_12mo": 7,
+        "scenario_count": 336,
+        "road_type": "collector",
+        "road_surface": "gravel",
+        "scenario_defaults": {
+          "latitude": 24.811,
+          "longitude": 93.939,
+          "traffic_volume_vehicles_per_hour": 449.0,
+          "average_speed_kmh": 57.3,
+          "historical_accidents_12mo": 7.0,
+          "hour_of_day": 11.0,
+          "day_of_week": 0.0,
+          "rainfall_mm": 0.1,
+          "visibility_m": 6557.0,
+          "road_width_m": 6.5,
+          "curve_severity": 2.0,
+          "poor_lighting": 0.0,
+          "road_surface_code": 1.0,
+          "road_type_code": 1.0
+        },
+        "data_source": "synthetic_demo_model"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          93.9362,
+          24.8177
+        ]
+      },
+      "properties": {
+        "name": "Thangal Bazar area (synthetic demo)",
+        "place_name": "Thangal Bazar",
+        "location_name": "Thangal Bazar area (synthetic demo)",
+        "severity": "moderate",
+        "risk_score": 26,
+        "synthetic_high_risk_probability": 0.2592,
+        "historical_accidents_12mo": 16,
+        "scenario_count": 336,
+        "road_type": "arterial",
+        "road_surface": "paved",
+        "scenario_defaults": {
+          "latitude": 24.8177,
+          "longitude": 93.9362,
+          "traffic_volume_vehicles_per_hour": 1017.0,
+          "average_speed_kmh": 37.4,
+          "historical_accidents_12mo": 16.0,
+          "hour_of_day": 12.0,
+          "day_of_week": 0.0,
+          "rainfall_mm": 0.1,
+          "visibility_m": 8819.0,
+          "road_width_m": 10.0,
+          "curve_severity": 0.0,
+          "poor_lighting": 0.0,
+          "road_surface_code": 0.0,
+          "road_type_code": 0.0
+        },
+        "data_source": "synthetic_demo_model"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          93.9475,
+          24.8157
+        ]
+      },
+      "properties": {
+        "name": "Paona Bazar area (synthetic demo)",
+        "place_name": "Paona Bazar",
+        "location_name": "Paona Bazar area (synthetic demo)",
+        "severity": "high",
+        "risk_score": 67,
+        "synthetic_high_risk_probability": 0.6713,
+        "historical_accidents_12mo": 5,
+        "scenario_count": 336,
+        "road_type": "local",
+        "road_surface": "unsealed",
+        "scenario_defaults": {
+          "latitude": 24.8157,
+          "longitude": 93.9475,
+          "traffic_volume_vehicles_per_hour": 406.0,
+          "average_speed_kmh": 26.4,
+          "historical_accidents_12mo": 5.0,
+          "hour_of_day": 12.0,
+          "day_of_week": 0.0,
+          "rainfall_mm": 0.3,
+          "visibility_m": 8296.0,
+          "road_width_m": 5.5,
+          "curve_severity": 3.0,
+          "poor_lighting": 0.0,
+          "road_surface_code": 2.0,
+          "road_type_code": 2.0
+        },
+        "data_source": "synthetic_demo_model"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          93.9350847,
+          24.7996733
+        ]
+      },
+      "properties": {
+        "name": "Keishampat Junction area (synthetic demo)",
+        "place_name": "Keishampat Junction",
+        "location_name": "Keishampat Junction area (synthetic demo)",
+        "severity": "moderate",
+        "risk_score": 30,
+        "synthetic_high_risk_probability": 0.296,
+        "historical_accidents_12mo": 9,
+        "scenario_count": 336,
+        "road_type": "collector",
+        "road_surface": "gravel",
+        "scenario_defaults": {
+          "latitude": 24.7996733,
+          "longitude": 93.9350847,
+          "traffic_volume_vehicles_per_hour": 512.0,
+          "average_speed_kmh": 25.2,
+          "historical_accidents_12mo": 9.0,
+          "hour_of_day": 12.0,
+          "day_of_week": 0.0,
+          "rainfall_mm": 0.3,
+          "visibility_m": 8755.0,
+          "road_width_m": 7.0,
+          "curve_severity": 1.0,
+          "poor_lighting": 0.0,
+          "road_surface_code": 1.0,
+          "road_type_code": 1.0
+        },
+        "data_source": "synthetic_demo_model"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          93.945,
+          24.8215
+        ]
+      },
+      "properties": {
+        "name": "Nagamapal area (synthetic demo)",
+        "place_name": "Nagamapal",
+        "location_name": "Nagamapal area (synthetic demo)",
+        "severity": "high",
+        "risk_score": 48,
+        "synthetic_high_risk_probability": 0.4786,
+        "historical_accidents_12mo": 4,
+        "scenario_count": 336,
+        "road_type": "local",
+        "road_surface": "unsealed",
+        "scenario_defaults": {
+          "latitude": 24.8215,
+          "longitude": 93.945,
+          "traffic_volume_vehicles_per_hour": 369.0,
+          "average_speed_kmh": 31.4,
+          "historical_accidents_12mo": 4.0,
+          "hour_of_day": 11.0,
+          "day_of_week": 0.0,
+          "rainfall_mm": 0.2,
+          "visibility_m": 6880.0,
+          "road_width_m": 6.0,
+          "curve_severity": 2.0,
+          "poor_lighting": 0.0,
+          "road_surface_code": 2.0,
+          "road_type_code": 2.0
+        },
+        "data_source": "synthetic_demo_model"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          93.939,
+          24.789
+        ]
+      },
+      "properties": {
+        "name": "Singjamei area (synthetic demo)",
+        "place_name": "Singjamei",
+        "location_name": "Singjamei area (synthetic demo)",
+        "severity": "high",
+        "risk_score": 35,
+        "synthetic_high_risk_probability": 0.3493,
+        "historical_accidents_12mo": 13,
+        "scenario_count": 336,
+        "road_type": "collector",
+        "road_surface": "paved",
+        "scenario_defaults": {
+          "latitude": 24.789,
+          "longitude": 93.939,
+          "traffic_volume_vehicles_per_hour": 817.0,
+          "average_speed_kmh": 64.8,
+          "historical_accidents_12mo": 13.0,
+          "hour_of_day": 12.0,
+          "day_of_week": 0.0,
+          "rainfall_mm": 0.2,
+          "visibility_m": 7483.0,
+          "road_width_m": 8.5,
+          "curve_severity": 1.0,
+          "poor_lighting": 0.0,
+          "road_surface_code": 0.0,
+          "road_type_code": 1.0
+        },
+        "data_source": "synthetic_demo_model"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          93.932,
+          24.83
+        ]
+      },
+      "properties": {
+        "name": "Khoyathong area (synthetic demo)",
+        "place_name": "Khoyathong",
+        "location_name": "Khoyathong area (synthetic demo)",
+        "severity": "low",
+        "risk_score": 8,
+        "synthetic_high_risk_probability": 0.079,
+        "historical_accidents_12mo": 3,
+        "scenario_count": 336,
+        "road_type": "local",
+        "road_surface": "paved",
+        "scenario_defaults": {
+          "latitude": 24.83,
+          "longitude": 93.932,
+          "traffic_volume_vehicles_per_hour": 289.0,
+          "average_speed_kmh": 25.8,
+          "historical_accidents_12mo": 3.0,
+          "hour_of_day": 11.0,
+          "day_of_week": 0.0,
+          "rainfall_mm": 0.3,
+          "visibility_m": 4489.0,
+          "road_width_m": 7.5,
+          "curve_severity": 0.0,
+          "poor_lighting": 0.0,
+          "road_surface_code": 0.0,
+          "road_type_code": 2.0
+        },
+        "data_source": "synthetic_demo_model"
+      }
+    }
+  ]
+}

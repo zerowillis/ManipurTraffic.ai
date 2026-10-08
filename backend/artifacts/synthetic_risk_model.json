@@ -1,0 +1,40 @@
+{
+  "data_source": "synthetic_demo",
+  "is_real_world_model": false,
+  "dataset_rows": 2688,
+  "test_rows": 675,
+  "train_period_end": "2025-09-30",
+  "test_period_start": "2025-10-01",
+  "features": [
+    "latitude",
+    "longitude",
+    "traffic_volume_vehicles_per_hour",
+    "average_speed_kmh",
+    "historical_accidents_12mo",
+    "hour_of_day",
+    "day_of_week",
+    "rainfall_mm",
+    "visibility_m",
+    "road_width_m",
+    "curve_severity",
+    "poor_lighting",
+    "road_surface_code",
+    "road_type_code"
+  ],
+  "target": "synthetic_future_accident_observed",
+  "synthetic_outcome_threshold": 0.3,
+  "synthetic_label_noise": 0.03,
+  "metrics": {
+    "accuracy": 0.8859,
+    "precision": 0.7897,
+    "recall": 0.9145,
+    "f1": 0.8475
+  },
+  "classification_threshold": 0.35,
+  "trained_at": "2026-10-08T15:28:13.844745+00:00",
+  "warning": "The model and recurring patterns learn a hand-authored synthetic process. Test metrics measure imitation of synthetic labels, not crash-prediction performance. Map locations are illustrative.",
+  "risk_map_locations": 8,
+  "pattern_groups": 96,
+  "total_synthetic_incident_examples": 914,
+  "returned_observations": 50
+}
