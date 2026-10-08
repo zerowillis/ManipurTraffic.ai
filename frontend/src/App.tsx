@@ -1214,10 +1214,6 @@ function App() {
                       ) : null}
                     </div>
                   ) : null}
-                  <p className="service-note">
-                    Your browser asks once for location access before the first live route
-                    request. Select both points, then preview; unavailable live routes use an OSRM estimate.
-                  </p>
                 </>
               )}
             </div>
